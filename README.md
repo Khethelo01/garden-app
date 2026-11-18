@@ -12,6 +12,21 @@ python garden_advice.py
 
 No third-party dependencies are needed.
 
+Enter `summer` or `winter`, then `flower` or `vegetable`. Input ignores case and
+surrounding spaces. Invalid or blank choices show the options and prompt again.
+Use Ctrl+C (or end input) to cancel. Choose your local season yourself so the
+program does not assume the Northern or Southern Hemisphere from a month.
+
+Example choices: `winter`, `vegetable`.
+
+```text
+Protect your plants from frost with covers.
+Keep an eye out for pests!
+```
+
+This exercise preserves the starter's limited advice coverage; it is not a
+location-specific planting calendar.
+
 ## Verify
 
 ```powershell
