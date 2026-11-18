@@ -4,6 +4,11 @@ on:
   push:
     branches: [container/garden-app]
   workflow_dispatch:
+    inputs:
+      dockerhub_username:
+        description: Docker Hub username to publish garden-app under
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -37,3 +42,39 @@ jobs:
           grep -F 'Input cancelled.' <<< "$output"
       - name: Record image metadata
         run: docker image inspect garden-app:1.0
+      - name: Publish tested image to Docker Hub
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          DOCKERHUB_USERNAME: ${{ inputs.dockerhub_username }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$DOCKERHUB_USERNAME" =~ ^[a-z0-9][a-z0-9_-]+$ ]]
+          test -n "$DOCKERHUB_TOKEN"
+          printf '%s' "$DOCKERHUB_TOKEN" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
+          docker tag garden-app:1.0 "$DOCKERHUB_USERNAME/garden-app:1.0"
+          docker tag garden-app:1.0 "$DOCKERHUB_USERNAME/garden-app:latest"
+          docker push "$DOCKERHUB_USERNAME/garden-app:1.0"
+          docker push "$DOCKERHUB_USERNAME/garden-app:latest"
+          docker logout
+
+  verify-published-image:
+    if: github.event_name == 'workflow_dispatch'
+    needs: container-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Pull and run the public image on a fresh machine
+        env:
+          DOCKERHUB_USERNAME: ${{ inputs.dockerhub_username }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="$DOCKERHUB_USERNAME/garden-app:1.0"
+          docker pull "$image"
+          output=$(printf 'winter\nvegetable\n' | docker run --rm -i "$image")
+          printf '%s\n' "$output"
+          grep -F 'Protect your plants from frost with covers.' <<< "$output"
+          grep -F 'Keep an eye out for pests!' <<< "$output"
+          docker image inspect --format '{{index .RepoDigests 0}}' "$image"
