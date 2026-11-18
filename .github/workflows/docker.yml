@@ -1,0 +1,39 @@
+name: Build and test Docker image
+
+on:
+  push:
+    branches: [container/garden-app]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  container-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Python regression tests
+        run: python3 -m unittest -v
+      - name: Build the console image
+        run: docker build --pull -t garden-app:1.0 .
+      - name: Verify non-root user and supported choices
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(docker image inspect --format '{{.Config.User}}' garden-app:1.0)" = "65532:65532"
+          for season in summer winter; do
+            for plant in flower vegetable; do
+              printf '%s\n%s\n' "$season" "$plant" | docker run --rm -i garden-app:1.0
+            done
+          done
+          output=$(printf 'invalid\n WINTER \nvegetable\n' | docker run --rm -i garden-app:1.0)
+          printf '%s\n' "$output"
+          grep -F 'Please choose one of:' <<< "$output"
+          grep -F 'Protect your plants from frost with covers.' <<< "$output"
+          grep -F 'Keep an eye out for pests!' <<< "$output"
+          output=$(docker run --rm garden-app:1.0)
+          grep -F 'Input cancelled.' <<< "$output"
+      - name: Record image metadata
+        run: docker image inspect garden-app:1.0
